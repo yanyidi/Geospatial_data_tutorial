@@ -2,7 +2,7 @@
 
 This tutorial is a summary of several geospatial data tutorials. There are: 
 
-1.Introduction to Geospatial Raster and Vector Data with R by Data Carpentry (http://datacarpentry.org/r-raster-vector-geospatial/)
+1.Introduction to Geospatial Raster and Vector Data with R by Data Carpentry (http://datacarpentry.org/r-raster-vector-geospatial/)  
 2.An Introduction to Spatial Data Analysis and Visualisation in R by the Consumer Data Research Centre (https://data.cdrc.ac.uk/dataset/introduction-spatial-data-analysis-and-visualisation-r)
 
 ## Menu
