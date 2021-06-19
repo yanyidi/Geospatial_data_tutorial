@@ -1,0 +1,97 @@
+Practical 5: Making maps in R
+=====================================================================
+
+Following the [tutorial](https://data.cdrc.ac.uk/system/files/practical5_0.html), this practice will focus on using **rmap package** to make maps in R.  
+
+In this tutorial we will: 
+- Load spatial data files (.csv & .shapefile) into R
+- Join data to GIS spatial data files 
+- Create a simple choropleth map
+- Customise choropleth maps with the _tmap package_ 
+
+First, load the packages and libraries:
+- `rgdal` - Bindings for the Geospatial Data Abstraction Library 
+- `rgeos` - Interface to Geometry Engine 
+
+```{r, include = F, message = F}
+library(rgdal)
+library(rgeos)
+library(raster)
+setwd("/Users/kate/Documents/GitHub/geospatial-data-tutorials/CDC-spatial-data-analysis-in-R")
+```
+
+### Loading shapefiles into R 
+
+```{r, message = F, results = 'hide'}
+census.data <- read.csv("practicaldata.csv")
+output.areas <- readOGR(dsn = ".", layer = "Camden_oa11")
+output.areas <- shapefile("/Users/kate/Documents/GitHub/geospatial-data-tutorials/CDC-spatial-data-analysis-in-R/Camden_oa11/Camden_oa11.shp")
+
+# plot the shapefile 
+plot(output.areas)
+
+# join csv data to the shapefile 
+oa.census <- merge(output.areas, census.data, by.x = "OA11CD", by.y = "OA")
+```
+
+### Setting a coordinate system 
+```{r, message = F, results = 'hide'}
+# sets the coordinated system to the British National Grid
+proj4string(oa.census) <- CRS("+init=EPSG:27700")
+```
+
+## Mapping data in R 
+
+```{r, message = F, results = 'hide'}
+library(tmap)
+library(leaflet)
+```
+
+```{r}
+# simplist way 
+qtm(oa.census, fill = "Qualification")
+```
+Creating maps in **tmap** contains several factors that need to be considered (just like how you drawing with **ggplot**): 
+> `polygon + polygon's symbology + borddrs + layout`
+
+```{r}
+# simple choropleth map of qualification variable 
+tm_shape(oa.census) + tm_fill("Qualification")
+```
+The choropleth map is created without the boundary, only the shape and color filled. 
+
+### Setting the colour palette 
+```{r}
+library(RColorBrewer)
+
+tm_shape(oa.census) + tm_fill("Qualification", palette = "-Greens")
+
+# setting the color intervals 
+tm_shape(oa.census) + tm_fill("Qualification", style = "quantile", palette = "Reds")
+# you have five options for style: equal, pretty(rounded values), quantile(equal num of cases in each group), jenks(natural breaks), cat(categorical)
+
+tm_shape(oa.census) + tm_fill("Qualification", style = "quantile", n = 7, palette = "Reds")
+```
+
+### Adding features 
+```{r}
+# add histogram to legend 
+tm_shape(oa.census) + tm_fill("Qualification", style = "quantile", n = 5, palette = "Reds", legend.hist = T)
+
+# add boarder 
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Reds" ) + tm_borders(alpha = 0.2)
+
+# add a north arrow 
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Reds") + tm_boarders(alpha = 0.2) + tm_compass()
+```
+
+### Editing the layout of the map 
+```{r}
+# add layout, remove frame 
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Reds" , style = "quantile", title = "% with a Qualification") + tm_borders(alpha = 0.2) + tm_compass() + tm_layout(title = "Camden, London", legend.text.size = 1.1, legend.title.size = 1.4, legend.position = c("right", "top"), frame = F)
+```
+
+## Saving the shapefile 
+```{r, message = F, results = 'hide'}
+writeOGR(oa.census, dsn = "/Users/kate/Documents/GitHub/geospatial-data-tutorials/CDC-spatial-data-analysis-in-R", layer = "Census_OA_Shapefile", driver = "ESRI Shapefile")
+```
