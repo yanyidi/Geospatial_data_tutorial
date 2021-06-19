@@ -1,0 +1,65 @@
+Practical 6: 
+=====================================================================
+
+## Create a point shapefile from a csv file using coordinates 
+```{r, message = F, results = 'hide'}
+houses <- read.csv("camdenhousesales15.csv")
+
+# select columns of interest 
+house <- houses[,c(1,2,8,9)]
+summary(house)
+```
+
+```{r}
+# try a simple scatter plot. Can roughly see a shape of Australia 
+plot(house$oseast1m, house$osnrth1m)
+```
+
+## Map the points using **tmap**
+```{r, message = F, results = 'hide'}
+library(sp)
+library(sf)
+st_crs(output.areas)
+
+# create an object to select house points 
+house.point <- SpatialPointsDataFrame(house[,3:4], house, proj4string = CRS("+init=EPSG:27700")) 
+# QUESTION: is this CRS default? identical as output.areas? how to understand crs output (different IDs, etc.)? 
+# QUESTION: warning messages 
+```
+
+```{r}
+# base map 
+tm_shape(oa.census) + tm_borders(alpha = 0.2)
+
+# add points 
+tm_shape(oa.census) + tm_borders(alpha = 0.2) + 
+  tm_shape(house.point) + tm_dots(col = "Price", palette = "Reds", style = "quantile", title = "Price Paid (£)")
+
+# change a color and layout, add compass 
+tm_shape(oa.census) + tm_borders(alpha = 0.2) + 
+  tm_shape(house.point) + tm_dots(col = "Price", palette = "Purples", style = "quantile", title = "Price Paid (£)") + tm_compass(position = c("right", "top")) + tm_layout(legend.text.size = 1.1, legend.title.size = 1.4, frame = F)
+```
+
+## Create a proportional bubble map 
+```{r}
+# bubble size according to price range (can have second attr vis)
+bubble_map <- 
+  tm_shape(oa.census) + 
+  tm_borders(alpha = .4) + 
+  tm_shape(house.point) + 
+  tm_bubbles(size = "Price", col = "Price", palette = "Blues", style = "quantile", legend.size.show = F, title.col = "Price Paid (£)") +
+  tm_layout(legend.text.size = 1.1, legend.title.size = 1.4, frame = F)
+
+bubble_map
+```
+
+```{r}
+# add color to the base map 
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Reds", style = "quantile", title = "% Qualification") + 
+  bubble_map
+```
+
+## Saving the shapefile 
+```{r, message = F, results = 'hide'}
+writeOGR(house.point, dsn = "/Users/kate/Documents/GitHub/geospatial-data-tutorials/CDC-spatial-data-analysis-in-R", layer = "Camden_house_sales", driver = "ESRI Shapefile")
+```
