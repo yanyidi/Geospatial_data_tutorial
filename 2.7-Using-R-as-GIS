@@ -1,0 +1,98 @@
+Practical 7: Using R as a GIS 
+========================================================================
+
+## Run a point-in-polygon operation 
+```{r, message = F, results = 'hide'}
+# set CRS, ensure both spatial files are set to _British National Grid (27700)_ 
+proj4string(oa.census) <- CRS("+init=EPSG:27700")
+proj4string(house.point) <-CRS("+init=EPSG:27700")
+
+# point in polygon 
+# function over() - spatial overlap and aggregation 
+pip <- over(house.point, oa.census)
+
+# @ operator - extract the contents of a slot in an object with a formal (S4) class structure 
+house.point@data <- cbind(house.point@data, pip)
+
+view(house.point@data)
+```
+
+### Create a scatterplot to show correlative relations between two variables
+```{r}
+# skewed 
+plot(house.point@data$Price, house.point@data$Unemployed)
+# log to reduce skewed 
+plot(log(house.point@data$Price), house.point@data$Unemployed)
+```
+
+### Measure the average house prices for each output area
+```{r, message = F, results = 'hide'}
+library(dplyr)
+library(spdplyr)
+
+oa <- house.point@data %>%
+  dplyr::select(UID, OA11CD, Price) %>%
+  dplyr::group_by(OA11CD) %>%
+  dplyr::summarise(avg_price = mean(Price), is.na = F)
+
+# alternative 
+# oa2 <- aggregate(house.point@data$Price, by = list(house.point@data$OA11CD), mean)
+
+# join the aggregated data back to the oa.census polygon
+oa.census@data <- merge(oa.census@data, oa, by = "OA11CD", all.x = T)
+```
+
+```{r}
+tm_shape(oa.census) + tm_fill(col = "avg_price", style = "quantile", title = "Mean House Price (£)")
+```
+
+### Simple linear regression on **avg_price** and **Unemployed**
+```{r, message = F, results = 'hide'}
+model <- lm(oa.census@data$avg_price ~ oa.census@data$Unemployed)
+summary(model)
+```
+
+## Create buffers 
+```{r, message = F, results = 'hide'}
+house_buffers <- gBuffer(house.point, width = 200, byid = T)
+```
+
+```{r}
+tm_shape(oa.census) + tm_borders() + 
+  tm_shape(house_buffers) + tm_borders(col = "lightblue") + 
+  tm_shape(house.point) + tm_dots(col = "blue")
+```
+
+### Union buffers 
+```{r}
+union.buffers <- gUnaryUnion(house_buffers)
+
+# visualise the union 
+tm_shape(oa.census) + tm_borders() +
+  tm_shape(union.buffers) + tm_fill(col = "lightblue", alpha = 0.4) + tm_borders(col = "blue") +
+  tm_shape(house.point) + tm_dots(col = "darkblue")
+```
+
+## Create interactive maps with **tmap** 
+```{r, message = F, results = 'hide'}
+library(leaflet)
+
+# turn on view map mode 
+tmap_mode("view")
+```
+
+```{r}
+# THIS IS COOOOL !! 
+tm_shape(house.point) + tm_dots(title = "House Prices (£)", border.col = "black", border.lwd = 0.1, border.alpha = 0.2, col = "Price", style = "quantile", palette = "Reds")
+```
+
+```{r}
+# attribute size and color to bubbles 
+tm_shape(house.point) +
+  tm_bubbles(size = "Price", col = "Price", palette = "Purples", style = "quantile", title.size = "House Price (£)", border.col = "black", border.lwd = 0.1, border.alpha = 0.4, legend.size.show = T)
+```
+
+```{r}
+# polygon 
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Reds", style = "quantile", title = "% with a Qualification") + tm_borders(alpha = .4)
+```
