@@ -1,0 +1,71 @@
+Practical 8: Representing Densities in R
+=================================================================
+
+## Kernel density estimation 
+```{r, message = F, results = 'hide'}
+library(adehabitatHR)
+
+kde.output <- kernelUD(house.point, h = "href", grid = 1000)
+plot(kde.output)
+
+# convert to raster 
+kde <- raster(kde.output)
+
+# set projection to British National Grid 
+projection(kde) <- CRS("+init=EPSG:27700")
+```
+
+## Map a raster shapefile in **tmap** 
+
+```{r}
+# maps the raster in tmap, 'ud' is the density variable 
+tm_shape(kde) + tm_raster("ud")
+```
+
+```{r, message = F, results = 'hide'}
+# zoom in by setting a bounding box 
+library(tmaptools)
+bounding_box <- bb(output.areas)
+tm_shape(kde, bbox = bounding_box) + tm_raster("ud")
+```
+
+## Use a mask technique to clip a raster 
+
+```{r, message = F, results = 'hide', warning = F}
+# mask the raster by the output area polygon 
+masked_kde <- mask(kde, output.areas)
+```
+
+```{r}
+# maps the masked raster 
+tm_shape(masked_kde, bbox = bounding_box) + tm_raster("ud", style = "quantile", n = 100, legend.show = F, palette = "YlGnBu") +
+  tm_shape(output.areas) + tm_borders(alpha = .3, col = "white") + tm_layout(frame = F)
+```
+
+```{r, message = F, results = 'hide'}
+# create catchment boundaries 
+range75 <- getverticeshr(kde.output, percent = 75)
+range50 <- getverticeshr(kde.output, percent = 50)
+range25 <- getverticeshr(kde.output, percent = 25)
+range10 <- getverticeshr(kde.output, percent = 10)
+```
+
+```{r}
+# a grey background using output.areas polygon with white borders 
+tm_shape(output.areas) + tm_fill(col = "lightgrey") + tm_borders(alpha = .8, col = "white") +
+  # plot house.point
+  tm_shape(house.point) + tm_dots(col = "blue") +
+  # plot 75% range 
+  tm_shape(range75) + tm_borders(alpha = .7, col = "#fb6a4a", lwd = 2) + tm_fill(alpha = .1, col = "#fb6a4a") +
+  # plot 50% range 
+  tm_shape(range50) + tm_borders(alpha = .7, col = "#de2d26", lwd = 2) + tm_fill(alpha = .1, col = "#de2d26") +
+  # plot 25% range
+  tm_shape(range25) + tm_borders(alpha = .7, col = "#a50f15", lwd = 2) + tm_fill(alpha = .1, col = "#a50f15") +
+  # plot 10% range 
+  tm_shape(range10) + tm_borders(alpha = .7, col = "red", lwd = 2) + tm_fill(alpha = .1, col = "red") + 
+  tm_layout(frame = F)
+```
+
+```{r, message = F, results = 'hide'}
+writeRaster(masked_kde, filename = "kernel_density.grd")
+```
