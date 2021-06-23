@@ -1,0 +1,145 @@
+Practial 11: Interpolating Point Data in R
+============================================================
+
+Potential purpose of interpolation: predict variables. 
+
+## Create thiessen polygons 
+
+```{r, warning = F}
+library(spatstat)
+library(maptools) # needed for conversion from SPDF to ppp 
+
+# create a tesellated surface 
+# ppp - spatial point pattern 
+dat.pp <- as(dirichlet(as.ppp(house.point)), "SpatialPolygons")
+dat.pp <- as(dat.pp, "SpatialPolygons")
+
+# sets the projection to British National Grid
+proj4string(dat.pp) <- crs("+init=EPSG:27700")
+proj4string(house.point) <- crs("+init=EPSG:27700")
+
+# assign to each polygon the data from house.point
+int.z <- over(dat.pp, house.point)
+
+# change the format to SpatialPolygonsDataFrame 
+thiessen <- SpatialPolygonsDataFrame(dat.pp, int.z)
+```
+
+```{r}
+# maps the thiessen polygons and house.point
+map_thiessen <- 
+  tm_shape(output.areas) + tm_fill(alpha = .3, col = "grey") +
+  tm_shape(thiessen) + tm_borders(alpha = .5, col = "black") + 
+  tm_shape(house.point) + tm_dots(col = "blue", scale = 0.5)
+
+map_thiessen 
+```
+
+```{r}
+# crop the polygon by output.area
+thiessen.crop <- crop(thiessen, output.areas)
+
+# map 
+tm_shape(output.areas) + tm_fill(alpha = .3, col = "grey") + 
+  tm_shape(thiessen.crop) + tm_borders(alpha = .5, col = "black") +
+  tm_shape(house.point) + tm_dots(col = "blue", scale = .5)
+```
+
+```{r}
+# map house price across thiessen polygons 
+tm_shape(thiessen.crop) + tm_fill(col = "Price", style = "quantile", palette = "Reds", title = "Price Paid (£)") + tm_borders(alpha = .3, col = "black") + 
+  tm_shape(house.point) + tm_dots(col = "black", scale = .5) + 
+  tm_layout(legend.text.size = 1.04, legend.title.size = 1.5)
+```
+
+## Run an inverse distance weighting to interpolate point data 
+```{r}
+library(gstat)
+library(xts)
+
+# generate sample grid based on house.point
+grid <- spsample(house.point, type = "regular", n =10000)
+
+# run the idw for the Price variable of house.point
+idw <- idw(house.point$Price ~1, house.point, newdata = grid)
+
+idw.output = as.data.frame(idw)
+names(idw.output)[1:3] <- c("long", "lat", "prediction")
+idw.output <- idw.output[1:3]
+```
+
+```{r, message = F, results = 'hide'}
+library(raster)
+
+# create spatial points data frame 
+spg <- idw.output
+coordinates(spg) <- ~ long + lat # ~ means 'its'
+
+# coerce to SpatialPixelsDataFrame
+gridded(spg) <- TRUE
+#coerce to raster
+raster_idw <- raster(spg)
+
+# set CRS
+projection(raster_idw) <- CRS("+init=EPSG:27700")
+```
+
+```{r}
+# quick plot 
+plot(raster_idw)
+
+# 3D plot 
+persp(raster_idw)
+
+# 3D interactive plot 
+library(rgl)
+# convert the raster to a matrix object 
+idw2 <- as.matrix(raster_idw)
+
+persp3d(idw2, col = "red")
+```
+
+```{r}
+# create a smoothed colour effect 
+tm_shape(raster_idw) + tm_raster("prediction", style = "quantile", n = 100, palette = "Reds", legend.show = F)
+
+# customise n = 7
+tm_shape(raster_idw) + tm_raster("prediction", style = "quantile", n=7, legend.show = T)
+
+# overlay the output.areas 
+tm_shape(raster_idw) + tm_raster("prediction", style = "quantile", n = 100, palette = "Reds", legend.show = F) + 
+  tm_shape(output.areas) + tm_borders(col = "black", alpha = .5)
+## QUESTION: can't see the output.areas 
+```
+
+```{r}
+# QUESTION: can't show 
+tm_shape(raster_idw) + tm_raster("prediction", style = "quantile", n = 100, palette = "Reds",legend.show = FALSE) +
+tm_shape(output.areas) + tm_borders(alpha=.5,) + 
+tm_shape(house.point) + tm_bubbles(size = "Price", col = "Price", palette = "Blues", style = "quantile", legend.size.show = FALSE, title.col = "Price Paid (£)") +
+tm_layout(legend.position = c("left", "bottom"),  legend.text.size = 1.1, legend.title.size = 1.4, frame = FALSE, legend.bg.color = "white", legend.bg.alpha = 0.5)
+```
+
+## Clip spatial data using the crop and mask functions 
+```{r}
+# mask the raster by output.areas 
+masked_idw <- mask(raster_idw, output.areas)
+
+# plot the masked raster 
+tm_shape(masked_idw) + tm_raster("prediction", style = "quantile", n = 100, legend.show = F) + 
+  tm_shape(house.point) + tm_bubbles(size = "Price", col = "Price", palette = "Blues", style = "quantile", legend.size.show = F, title.col = "Price Paid (£)") + 
+  tm_layout(legend.position = c("left", "bottom"), legend.text.size = 1.1, legend.title.size = 1.4, frame = F)
+```
+
+## Kriging for geostatistical interpolation 
+```{r}
+library(automap)
+
+# generate grid 
+grid
+
+# run the kriging 
+kriging_result <- autoKrige(log(Price) ~ 1, house.point, grid)
+
+plot(kriging_result)
+```
